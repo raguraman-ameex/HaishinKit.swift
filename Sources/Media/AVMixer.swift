@@ -2,7 +2,7 @@ import AVFoundation
 
 #if os(iOS) || os(macOS)
     extension AVCaptureSession.Preset {
-        static var `default`: AVCaptureSession.Preset = .medium
+        static var `default`: AVCaptureSession.Preset = .high
     }
 #endif
 
@@ -17,6 +17,8 @@ protocol AVMixerDelegate: AnyObject {
 
 /// An object that mixies audio and video for streaming.
 public class AVMixer {
+    public static let bufferEmpty: Notification.Name = .init("AVMixerBufferEmpty")
+
     public static let defaultFPS: Float64 = 30
     public static let defaultVideoSettings: [NSString: AnyObject] = [
         kCVPixelBufferPixelFormatTypeKey: NSNumber(value: kCVPixelFormatType_32BGRA)
@@ -149,13 +151,13 @@ public class AVMixer {
         settings.observer = self
     }
 
-#if os(iOS) || os(macOS)
     deinit {
+#if os(iOS) || os(macOS)
         if let session = _session, session.isRunning {
             session.stopRunning()
         }
-    }
 #endif
+    }
 }
 
 extension AVMixer {

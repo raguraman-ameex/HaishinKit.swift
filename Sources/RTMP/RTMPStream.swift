@@ -195,7 +195,7 @@ open class RTMPStream: NetStream {
         case localRecord
     }
 
-    enum ReadyState: UInt8 {
+    public enum ReadyState: UInt8 {
         case initialized
         case open
         case play
@@ -267,8 +267,25 @@ open class RTMPStream: NetStream {
             }
         }
     }
+    
+    open var isRecordingPaused = false {
+        didSet {
+            lockQueue.async {
+                switch self.readyState {
+                case .publish, .publishing:
+//                    self.paused = self.isRecordingPaused
+                    self.mixer.audioIO.isPaused = self.isRecordingPaused
+                    self.mixer.videoIO.isPaused = self.isRecordingPaused
+                    discont = true
+                default:
+                    break
+                }
+            }
+        }
+    }
+    
     var id: UInt32 = RTMPStream.defaultID
-    var readyState: ReadyState = .initialized {
+    public var readyState: ReadyState = .initialized {
         didSet {
             guard oldValue != readyState else {
                 return
@@ -360,6 +377,9 @@ open class RTMPStream: NetStream {
     open func publish(_ name: String?, type: RTMPStream.HowToPublish = .live) {
         // swiftlint:disable closure_body_length
         lockQueue.async {
+            discont = false;
+            timeOffset = CMTimeMake(value: 0, timescale: 0);
+            
             guard let name: String = name else {
                 switch self.readyState {
                 case .publish, .publishing:

@@ -11,6 +11,7 @@ final class AVAudioIOUnit: NSObject, AVIOUnit {
         return codec
     }()
     let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.AudioIOComponent.lock")
+    var isPaused: Bool = false
 
     var audioEngine: AVAudioEngine?
     var soundTransform: SoundTransform = .init() {
@@ -128,7 +129,46 @@ final class AVAudioIOUnit: NSObject, AVIOUnit {
 extension AVAudioIOUnit: AVCaptureAudioDataOutputSampleBufferDelegate {
     // MARK: AVCaptureAudioDataOutputSampleBufferDelegate
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        appendSampleBuffer(sampleBuffer)
+        guard !self.isPaused else {
+            return
+        }
+        if discont {
+            discont = false
+            var pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            let last = lastAudio
+            if last.flags.contains(CMTimeFlags.valid) {
+                if timeOffset.flags.contains(CMTimeFlags.valid) {
+                    pts = CMTimeSubtract(pts, timeOffset)
+                }
+                let off = CMTimeSubtract(pts, last)
+                if timeOffset.value == 0 {
+                    timeOffset = off
+                }
+                else {
+                    timeOffset = CMTimeAdd(timeOffset, off)
+                }
+            }
+            lastVideo.flags = []
+            lastAudio.flags = []
+        }
+        var out:CMSampleBuffer?
+        if timeOffset.value > 0 {
+            out = adjustTime(sample: sampleBuffer, by: timeOffset)
+        }
+        else {
+            out = sampleBuffer
+        }
+        var pts = CMSampleBufferGetPresentationTimeStamp(out!)
+        let dur = CMSampleBufferGetDuration(out!)
+        if (dur.value > 0)
+        {
+            pts = CMTimeAdd(pts, dur);
+        }
+        
+            lastAudio = pts;
+//        print("--->>>> lastAudio\(CMTimeGetSeconds(lastAudio))")
+        
+        appendSampleBuffer(out!)
     }
 }
 
