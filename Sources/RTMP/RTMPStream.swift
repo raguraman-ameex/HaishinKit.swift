@@ -195,7 +195,7 @@ open class RTMPStream: NetStream {
         case localRecord
     }
 
-    public enum ReadyState: UInt8 {
+    enum ReadyState: UInt8 {
         case initialized
         case open
         case play
@@ -267,25 +267,8 @@ open class RTMPStream: NetStream {
             }
         }
     }
-    
-    open var isRecordingPaused = false {
-        didSet {
-            lockQueue.async {
-                switch self.readyState {
-                case .publish, .publishing:
-//                    self.paused = self.isRecordingPaused
-                    self.mixer.audioIO.isPaused = self.isRecordingPaused
-                    self.mixer.videoIO.isPaused = self.isRecordingPaused
-                    discont = true
-                default:
-                    break
-                }
-            }
-        }
-    }
-    
     var id: UInt32 = RTMPStream.defaultID
-    public var readyState: ReadyState = .initialized {
+    var readyState: ReadyState = .initialized {
         didSet {
             guard oldValue != readyState else {
                 return
@@ -374,12 +357,9 @@ open class RTMPStream: NetStream {
     }
 
     /// Sends streaming audio, vidoe and data message from client.
-    open func publish(_ name: String?, type: RTMPStream.HowToPublish = .live) {
+    open func publish(_ name: String?, type: RTMPStream.HowToPublish = .live, videoId: String = "") {
         // swiftlint:disable closure_body_length
         lockQueue.async {
-            discont = false;
-            timeOffset = CMTimeMake(value: 0, timescale: 0);
-            
             guard let name: String = name else {
                 switch self.readyState {
                 case .publish, .publishing:
@@ -394,6 +374,7 @@ open class RTMPStream: NetStream {
                 switch type {
                 case .localRecord:
                     self.mixer.recorder.fileName = FilenameUtil.fileName(resourceName: self.info.resourceName)
+                    self.mixer.recorder.videoId = videoId
                     self.mixer.recorder.startRunning()
                 default:
                     self.mixer.recorder.stopRunning()
@@ -403,6 +384,7 @@ open class RTMPStream: NetStream {
             }
 
             self.info.resourceName = name
+            self.info.videoId = videoId
             self.howToPublish = type
 
             let message = RTMPCommandMessage(
@@ -553,6 +535,7 @@ open class RTMPStream: NetStream {
             mixer.videoIO.encoder.startRunning()
             if howToPublish == .localRecord {
                 mixer.recorder.fileName = FilenameUtil.fileName(resourceName: info.resourceName)
+                mixer.recorder.videoId = info.videoId
                 mixer.recorder.startRunning()
             }
         default:

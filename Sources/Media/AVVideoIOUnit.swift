@@ -1,40 +1,13 @@
 import AVFoundation
 import CoreImage
 
-var timeOffset = CMTime()
-var lastVideo = CMTime()
-var lastAudio = CMTime()
-var discont: Bool = false
-
-func adjustTime(sample: CMSampleBuffer, by offset: CMTime) -> CMSampleBuffer {
-    var count = CMItemCount()
-    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
-    var info = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: count)
-    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &info, entriesNeededOut: &count);
-    
-    
-    for i in 0..<count {
-        info[i].decodeTimeStamp = CMTimeSubtract(info[i].decodeTimeStamp, offset);
-        info[i].presentationTimeStamp = CMTimeSubtract(info[i].presentationTimeStamp, offset);
-    }
-    
-    var out: CMSampleBuffer?
-    CMSampleBufferCreateCopyWithNewTiming(allocator: nil, sampleBuffer: sample, sampleTimingEntryCount: count, sampleTimingArray: &info, sampleBufferOut: &out);
-    return out!
-}
-
 final class AVVideoIOUnit: NSObject, AVIOUnit {
-    
-    
-    
     static let defaultAttributes: [NSString: NSObject] = [
         kCVPixelBufferPixelFormatTypeKey: NSNumber(value: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange),
         kCVPixelBufferMetalCompatibilityKey: kCFBooleanTrue
     ]
 
     let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.VideoIOComponent.lock")
-    
-    var isPaused: Bool = false
 
     var context: CIContext? {
         didSet {
@@ -45,7 +18,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
     }
 
     #if os(iOS) || os(macOS)
-    weak var renderer: NetStreamRenderer? = nil {
+    weak var renderer: NetStreamRenderer? {
         didSet {
             renderer?.orientation = orientation
         }
@@ -289,7 +262,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
         }
     }
 
-    var input: AVCaptureInput? = nil {
+    var input: AVCaptureInput? {
         didSet {
             guard let mixer: AVMixer = mixer, oldValue != input else {
                 return
@@ -305,7 +278,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
     #endif
 
     #if os(iOS)
-    var screen: CaptureSessionConvertible? = nil {
+    var screen: CaptureSessionConvertible? {
         didSet {
             if let oldValue = oldValue {
                 oldValue.delegate = nil
@@ -470,36 +443,16 @@ extension AVVideoIOUnit {
 extension AVVideoIOUnit: AVCaptureVideoDataOutputSampleBufferDelegate {
     // MARK: AVCaptureVideoDataOutputSampleBufferDelegate
     func captureOutput(_ captureOutput: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard !self.isPaused else {
-            return
-        }
-        var out:CMSampleBuffer?
-        if timeOffset.value > 0 {
-            out = adjustTime(sample: sampleBuffer, by: timeOffset)
-        }
-        else {
-            out = sampleBuffer
-        }
-        var pts = CMSampleBufferGetPresentationTimeStamp(out!)
-        let dur = CMSampleBufferGetDuration(out!)
-        if (dur.value > 0)
-        {
-            pts = CMTimeAdd(pts, dur);
-        }
-            lastVideo = pts;
-        
-//        print("--->>>> lastVideo\(CMTimeGetSeconds(lastVideo))")
         #if os(macOS)
         if connection.isVideoMirrored {
             sampleBuffer.reflectHorizontal()
         }
         #endif
-        encodeSampleBuffer(out!)
+        encodeSampleBuffer(sampleBuffer)
     }
 }
 
 extension AVVideoIOUnit: VideoDecoderDelegate {
-    
     // MARK: VideoDecoderDelegate
     func sampleOutput(video sampleBuffer: CMSampleBuffer) {
         renderer?.enqueue(sampleBuffer)

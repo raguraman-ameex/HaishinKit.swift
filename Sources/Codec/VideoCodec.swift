@@ -242,7 +242,8 @@ public final class VideoCodec {
     }
 
     func encodeImageBuffer(_ imageBuffer: CVImageBuffer, presentationTimeStamp: CMTime, duration: CMTime) {
-        guard isRunning.value && locked == 0 else {
+//        && locked == 0
+        guard isRunning.value else {
             return
         }
         if invalidateSession {

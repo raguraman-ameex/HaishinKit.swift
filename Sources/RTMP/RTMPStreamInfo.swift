@@ -6,6 +6,7 @@ import Foundation
 public struct RTMPStreamInfo {
     public internal(set) var byteCount: Atomic<Int64> = .init(0)
     public internal(set) var resourceName: String?
+    public internal(set) var videoId: String?
     public internal(set) var currentBytesPerSecond: Int32 = 0
 
     private var previousByteCount: Int64 = 0

@@ -28,6 +28,7 @@ open class AVRecorder: NSObject {
 
     open var writer: AVAssetWriter?
     open var fileName: String?
+    open var videoId: String?
     open weak var delegate: AVRecorderDelegate? = DefaultAVRecorderDelegate.shared
     open var writerInputs: [AVMediaType: AVAssetWriterInput] = [:]
     open var outputSettings: [AVMediaType: [String: Any]] = AVRecorder.defaultOutputSettings
@@ -201,7 +202,7 @@ extension DefaultAVRecorderDelegate: AVRecorderDelegate {
         if recorder.writer != nil {
             recorder.finishWriting()
         }
-        recorder.writer = createWriter(recorder.fileName)
+        recorder.writer = createWriter(recorder.fileName, directoryName: recorder.videoId)
         rotateTime = CMTimeAdd(
             withPresentationTimeStamp,
             CMTimeMake(value: duration == 0 ? .max : duration * Int64(withPresentationTimeStamp.timescale), timescale: withPresentationTimeStamp.timescale)
@@ -282,19 +283,20 @@ extension DefaultAVRecorderDelegate: AVRecorderDelegate {
         rotateTime = CMTime.zero
     }
 
-    func createWriter(_ fileName: String?) -> AVAssetWriter? {
+    func createWriter(_ fileName: String?, directoryName: String?) -> AVAssetWriter? {
         do {
             let dateFormatter = DateFormatter()
             dateFormatter.locale = Locale(identifier: "en_US")
             dateFormatter.dateFormat = dateFormat
-            var fileComponent: String?
-            if var fileName: String = fileName {
-                if let q: String.Index = fileName.firstIndex(of: "?") {
-                    fileName.removeSubrange(q..<fileName.endIndex)
+            let directoryUrl = moviesDirectory.appendingPathComponent(directoryName ?? "Video")
+            if !FileManager.default.fileExists(atPath: directoryUrl.path) {
+                do {
+                    try FileManager.default.createDirectory(atPath: directoryUrl.path, withIntermediateDirectories: true, attributes: nil)
+                } catch {
+                    print("Couldn't create document directory")
                 }
-                fileComponent = fileName + dateFormatter.string(from: Date())
             }
-            let url: URL = moviesDirectory.appendingPathComponent((fileComponent ?? UUID().uuidString) + fileType.fileExtension)
+            let url: URL = directoryUrl.appendingPathComponent(("Video\(Date().timeIntervalSince1970)") + fileType.fileExtension)
             logger.info("\(url)")
             return try AVAssetWriter(outputURL: url, fileType: fileType.AVFileType)
         } catch {
